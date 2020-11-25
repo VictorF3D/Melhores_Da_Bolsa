@@ -1,0 +1,127 @@
+#Qual a mellhor empresa para se investir?
+
+#PARTE 1: Selecionando o setor e buscando os dados na plataforma Fundamentus
+
+import pandas as pd
+import io
+import requests
+import re
+
+setores = {0: 'Nulo', 1:'Petróleo, Gás e Biocombustíveis', 2:'Mineração', 3:'Siderurgia e Metalurgia',4:'Químicos', 10:'Indústria'}
+
+#Recebendo o nome do setor desejado e ajustando a url correspondente
+n = input("Os setores disponíveis são: \n 1 - Petróleo, Gás e Biocombustíveis | 2 - Mineração | 3 - Siderurgia e Metalurgia \n  4 - Químicos | 10 - Indústria Geral \n\n Digite o número do setor desejado:")
+
+url_base = "https://www.fundamentus.com.br/resultado.php?setor="
+url = url_base + str(n)
+n = int(n)
+#Acessando a url e buscando a tabela
+
+#Fazendo o requerimento como sendo um navegador
+header = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0",
+    "X-Requested-With": "XMLHttpRequest"  
+}
+
+#Fazendo o resquest da página
+r = requests.get(url,headers = header)
+d = pd.read_html(r.text)
+df = d[0]
+df = pd.DataFrame(df)
+
+#PARTE 2: Utiliando os dados para rankear as empresas
+
+#Minhas regras:
+#i)Vou utilizar ROE e EV/EBITDA
+#ii) ROE < 0 = -2 | 0<= ROE < 3 = 0 | 3 <= ROE < 7 = 2 | 7 <= ROE < 10 = 4 | 10 <= ROE = 6
+#iii) EV < 0 = -2 | 0 <= EV < 1 = 10 | 1 <= EV < 20 = 6 | 20 <= EV < 50 = 2 | 50 <= EV = 0
+nota_roe = 0
+roes_empresas = []
+range_m = len(df)
+#Função que extrai o roe da tabela
+def funcao_roe(i):
+
+  roe = df.loc[i,'ROE']
+  roe = roe.replace('%','')
+  roe = roe.replace(',','.')
+  roe = re.sub("[^0-9^.-]", "", roe)
+  roe = float(roe)
+  roe
+  return roe
+
+
+for i in range (int(range_m)):
+  roe = funcao_roe(i)  
+  if (roe < 0):
+    nota_roe = -2
+  elif (roe < 3):
+    nota_roe = 0
+  elif (roe < 7):
+    nota_roe = 2
+  elif (roe < 10):
+    nota_roe = 4
+  elif (roe < 15):
+    nota_roe = 6
+  elif (roe < 25):
+    nota_roe = 8
+  else:
+    nota_roe = 10
+  roes_empresas.append(nota_roe)
+
+
+      
+#Extraindo os EV/EBITDAS das empresas:
+nota_ev_ebitda = 0
+ev_ebitda_empresas = []
+
+def funcao_ev_ebitda(i):
+#ee representa EV/EBITDA
+  ee = df.loc[i,'EV/EBITDA']
+  ee = float(ee)/100
+  return ee
+
+
+for i in range (int(range_m)):
+  ee = float(funcao_ev_ebitda(i))  
+  if (ee <= 0):
+    nota_ev_ebitda = -2
+  elif (ee < 1):
+    nota_ev_ebitda = 10
+  elif (ee < 20):
+    nota_ev_ebitda = 6
+  elif (ee < 50):
+    nota_ev_ebitda = 2
+  elif (ee < 100):
+    nota_ev_ebitda = 0
+  else:
+    nota_ev_ebitda = -2
+  ev_ebitda_empresas.append(nota_ev_ebitda)
+  
+
+
+#PARTE 3: Rankeando as empresas
+
+colunas = ['Posição','Nota']
+
+empresas = []
+for i in range(range_m):
+  empresas.append(df.loc[i,'Papel'])
+
+
+notas = []
+for i in range(range_m):
+  nota = int(ev_ebitda_empresas[i]) + int(roes_empresas[i])
+  notas.append(nota)
+
+
+posicao = []
+for i in range(range_m):
+  posicao.append(i+1)
+
+data = {'Empresa:':empresas, 'Nota:':notas}
+
+ranking = pd.DataFrame(data)
+ranking.sort_values(by=['Nota:'], inplace=True, ascending=False)
+ranking.insert(loc = 0, column = 'Ranking:', value = posicao)
+print("\n""Setor Escolhido:",setores[n])
+print("\n",ranking.to_string(index = False))
